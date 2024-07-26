@@ -1,5 +1,12 @@
 # espcap-opcua
-This project is essentially a rewrite of the original [espcap](https://github.com/vichargrave/espcap) by [Vic Hargrave](https://github.com/vichargrave).
+This project is essentially a rewrite of the original [espcap](https://github.com/vichargrave/espcap) by [Vic Hargrave](https://github.com/vichargrave), built specifically for OPCUA applications.
+
+This script was designed to run on a device that has visibility to all OPCUA traffic. Currently, the script looks for:
+- WriteRequests
+- WriteResponses
+- ReadRequests
+- ReadResponses
+
 
 ## Usage
 - Clone the repository and enter the project directory
