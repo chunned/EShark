@@ -15,12 +15,12 @@ This script was designed to run on a device that has visibility to all OPCUA tra
 - Set environment variables in .env.example and rename to .env: `mv .env.example .env`
 - Run `main.py`
 
-**Live Capture**
+**PCAP File Playback** (load an existing PCAP file)
 ```python
 python main.py -m file -f <path/to/pcap>
 ```
 
-**PCAP File Playback** (load an existing PCAP file)
+**Live Capture**
 ```python
 python main.py -m live -i <interface> -b <bpf>
 ```
