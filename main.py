@@ -20,7 +20,8 @@ def parse_arguments():
     parser.add_argument('-m', '--mode', type=str,
                         help='Mode: {live|file} - capture live packets or read from pcap file', required=True)
     parser.add_argument('-i', '--interface', type=str,
-                        help="Network interface for live capture (required if mode is 'live')")
+                        help="Network interface for live capture (required if mode is 'live')\n"
+                             "To use a list of interfaces, simply enter the names separated by commas, i.e.: eth0,eth1")
     parser.add_argument('-f', '--file', type=str,
                         help="Path to pcap file (required if mode is 'file')")
     parser.add_argument('-b', '--bpf', type=str,
@@ -63,6 +64,9 @@ def create_index(es):
                             },
                             "type": {
                                 "type": "integer"
+                            },
+                            "interface": {
+                                "type": "text"
                             }
                         }
                     },
@@ -161,11 +165,13 @@ def capture(es, mode, interface, file, bpf, packet_count):
             packets.append(parsed)
             helpers.bulk(client=es, actions=index_packets(cap=packets))
     elif mode == 'live':
+        interface = interface.split(',')
+
         cap = pyshark.LiveCapture(
             decode_as={"tcp.port==53530": "opcua"},
             use_ek=True,
             interface=interface,
-            bpf_filter=bpf
+            bpf_filter=bpf,
         )
         cap.set_debug()
         if packet_count == 0:
@@ -210,7 +216,8 @@ def parse_frame(frame):
     parsed_frame = {
         "mac_src": frame.src.resolved,
         "mac_dst": frame.dst.resolved,
-        "type": frame.type
+        "type": frame.type,
+        "interface": frame.interface.name
     }
     return parsed_frame
 
