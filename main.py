@@ -188,10 +188,11 @@ def capture(es, mode, interface, file, bpf, packet_count):
 def parse_packet(pkt):
     # Takes a Packet object received from Tshark and parses the relevant fields
     # Each layer is parsed in its own function
+    interface = pkt.frame_info.interface.name
     timestamp = pkt.sniff_timestamp
     frame = parse_frame(pkt.eth)
     ip = parse_ip(pkt.ip)
-    parsed = {"timestamp": timestamp, "eth": frame, "ip": ip}
+    parsed = {"timestamp": timestamp, "interface": interface, "eth": frame, "ip": ip}
 
     if ip["protocol"] == 6:
         tcp = parse_tcp(pkt.tcp)
@@ -217,7 +218,6 @@ def parse_frame(frame):
         "mac_src": frame.src.resolved,
         "mac_dst": frame.dst.resolved,
         "type": frame.type,
-        "interface": frame.interface.name
     }
     return parsed_frame
 
