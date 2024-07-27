@@ -45,6 +45,7 @@ def parse_arguments():
 def create_index(es):
     # Create ElasticSearch index
     # Originally altered from: https://github.com/vichargrave/espcap/blob/master/scripts/packet_template-7.x.sh
+    # TODO: add schema for new protocols: ARP, UDP, DNS, MODBUS, HTTP
     mappings = {
         "dynamic": "true",
         "properties": {
@@ -257,9 +258,13 @@ def parse_packet(pkt):
         elif applayer_protocol == "MODBUS":
             modbus = parse_modbus([pkt.mbtcp, pkt.modbus])
             parsed['modbus'] = modbus
-        elif applayer_protocol == "HTTP":
-            http = parse_http(pkt.http)
-            parsed["http"] = http
+        else:
+            try:
+                # highest_layer check doesn't work for HTTP data because POST data will show as highest layer 'MEDIA'
+                http = parse_http(pkt.http)
+                parsed["http"] = http
+            except AttributeError:
+                pass
     return parsed
 
 
@@ -453,7 +458,33 @@ def parse_modbus(modbus):
 
 
 def parse_http(http):
-    parsed_http = {}
+    parsed_http = {
+        "connection": http.connection,
+        "accept": http.accept,
+    }
+    if http.request.value:
+        # If above is true, packet is an HTTP request
+        method = http.request.method
+        parsed_http['method'] = method
+        parsed_http['request_headers'] = http.request.line
+        parsed_http['host'] = http.host
+        parsed_http['authorization'] = http.authorization
+        parsed_http['user_agent'] = http.user.agent
+        parsed_http['request_uri'] = http.request.uri
+        parsed_http['request_uri_full'] = http.request.full.uri
+        parsed_http['version'] = http.request.version
+
+        if method != 'GET':
+            parsed_http['payload'] = http.file.data
+    else:
+        # Packet is an HTTP response
+        uri = getattr(http, 'for')
+        parsed_http['uri'] = uri.uri
+        parsed_http['response_headers'] = http.response.line
+        parsed_http['response_code'] = http.response.code
+        parsed_http['version'] = http.response.version
+        parsed_http['response_data'] = http.file.data
+
     return parsed_http
 
 
