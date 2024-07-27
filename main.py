@@ -99,8 +99,10 @@ def create_index(es):
                             },
                             "payload": {
                                 "type": "text"
+                            },
+                            "flags": {
+                                "type": "array"
                             }
-                            # TODO: implement TCP fags (see also: parse_tcp() function)
                         }
                     },
                     "opcua": {
@@ -205,7 +207,9 @@ def parse_packet(pkt):
 
     applayer_protocol = pkt.highest_layer
 
-    if applayer_protocol == "OPCUA":
+    if applayer_protocol in ["TCP", "UDP"]:
+        return parsed
+    elif applayer_protocol == "OPCUA":
         opcua = parse_opcua(pkt.opcua)
         parsed["opcua"] = opcua
 
@@ -237,13 +241,22 @@ def parse_tcp(tcp):
         payload = str(tcp.payload)
     except AttributeError:
         payload = ''
-    # TODO: integrate TCP flags
+    # get TCP flags
+    flags = tcp.flags
+    active_flags = []
+    possible_flags = ["syn", "ack", "urg", "push", "fin", "reset"]
+    for f in possible_flags:
+        if getattr(flags, f):
+            # If attribute is True, append flag to list of active flags for this packet
+            active_flags.append(f)
+
     parsed_tcp = {
         "port_src": tcp.srcport,
         "port_dst": tcp.dstport,
         "stream": tcp.stream,
         "seq": tcp.seq.raw,
         "payload_raw": payload,
+        "flags": active_flags
     }
 #    print(type(payload))
     return parsed_tcp
