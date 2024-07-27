@@ -45,7 +45,6 @@ def parse_arguments():
 def create_index(es):
     # Create ElasticSearch index
     # Originally altered from: https://github.com/vichargrave/espcap/blob/master/scripts/packet_template-7.x.sh
-    # TODO: NEEDS REWRITE
     mappings = {
         "dynamic": "true",
         "properties": {
@@ -68,6 +67,25 @@ def create_index(es):
                             "interface": {
                                 "type": "text"
                             }
+                        }
+                    },
+                    "arp": {
+                        "properties": {
+                            "opcode": {
+                                "type": "integer"
+                            },
+                            "src_mac": {
+                                "type": "text"
+                            },
+                            "src_ip": {
+                                "type": "ip"
+                            },
+                            "dst_mac": {
+                                "type": "text"
+                            },
+                            "dst_ip": {
+                                "type": "ip"
+                            },
                         }
                     },
                     "ip": {
@@ -102,6 +120,22 @@ def create_index(es):
                             },
                             "flags": {
                                 "type": "array"
+                            }
+                        }
+                    },
+                    "udp": {
+                        "properties": {
+                            "port_src": {
+                                "type": "integer"
+                            },
+                            "port_dst": {
+                                "type": "integer"
+                            },
+                            "stream": {
+                                "type": "integer"
+                            },
+                            "payload": {
+                                "type": "text"
                             }
                         }
                     },
@@ -193,37 +227,66 @@ def parse_packet(pkt):
     interface = pkt.frame_info.interface.name
     timestamp = pkt.sniff_timestamp
     frame = parse_frame(pkt.eth)
-    ip = parse_ip(pkt.ip)
-    parsed = {"timestamp": timestamp, "interface": interface, "eth": frame, "ip": ip}
 
-    if ip["protocol"] == 6:
-        tcp = parse_tcp(pkt.tcp)
-        parsed["tcp"] = tcp
+    parsed = {"timestamp": timestamp, "interface": interface, "eth": frame}
+    if frame['type'] == 'ARP':
+        arp = parse_arp(pkt.arp)
+        parsed['arp'] = arp
+    elif frame['type'] == 'IP':
+        ip = parse_ip(pkt.ip)
+        parsed['ip'] = ip
 
-    # todo: add checks + parsing for UDP, if necessary
-    elif ip["protocol"] == 17:
-        udp = parse_udp(pkt.udp)
-        parsed["udp"] = udp
+        if ip["protocol"] == 6:
+            tcp = parse_tcp(pkt.tcp)
+            parsed["tcp"] = tcp
 
-    applayer_protocol = pkt.highest_layer
+        elif ip["protocol"] == 17:
+            udp = parse_udp(pkt.udp)
+            parsed["udp"] = udp
 
-    if applayer_protocol in ["TCP", "UDP"]:
-        return parsed
-    elif applayer_protocol == "OPCUA":
-        opcua = parse_opcua(pkt.opcua)
-        parsed["opcua"] = opcua
+        applayer_protocol = pkt.highest_layer
 
+        if applayer_protocol in ["TCP", "UDP"]:
+            return parsed
+        elif applayer_protocol == "OPCUA":
+            opcua = parse_opcua(pkt.opcua)
+            parsed["opcua"] = opcua
+        elif applayer_protocol == "DNS":
+            dns = parse_dns(pkt.dns)
+            parsed["dns"] = dns
+        elif applayer_protocol == "MODBUS":
+            modbus = parse_modbus([pkt.mbtcp, pkt.modbus])
+            parsed['modbus'] = modbus
+        elif applayer_protocol == "HTTP":
+            http = parse_http(pkt.http)
+            parsed["http"] = http
     return parsed
 
 
 def parse_frame(frame):
     # Parse frame (Ethernet layer) data
+    frametype = frame.type
+    if frametype == '2054':
+        frametype = 'ARP'
+    elif frametype == '2048':
+        frametype = 'IP'
     parsed_frame = {
         "mac_src": frame.src.resolved,
         "mac_dst": frame.dst.resolved,
-        "type": frame.type,
+        "type": frametype,
     }
     return parsed_frame
+
+
+def parse_arp(arp):
+    parsed_arp = {
+        "opcode": arp.opcode,
+        "src_mac": arp.src.hw.mac,
+        "src_ip": arp.src.proto.ipv4,
+        "dst_mac": arp.dst.hw.mac,
+        "dst_ip": arp.dst.proto.ipv4
+    }
+    return parsed_arp
 
 
 def parse_ip(ip):
@@ -263,7 +326,13 @@ def parse_tcp(tcp):
 
 
 def parse_udp(udp):
-    return 0
+    parsed_udp = {
+        "port_src": udp.srcport,
+        "port_dst": udp.dstport,
+        "stream": udp.stream,
+        "payload": str(udp.payload)
+    }
+    return parsed_udp
 
 
 def parse_opcua(opc):
@@ -289,7 +358,7 @@ def parse_opcua(opc):
         try:
             nodes_response_value = opc.Double
             if isinstance(nodes_response_value, float):
-                nodes_list = {"0": nodes_response_value}
+                nodes_list = {0: nodes_response_value}
             else:
                 nodes_list = {i: nodes_response_value[i] for i in range(len(nodes_response_value))}
             parsed_opcua["nodes_response_list"] = nodes_list
@@ -300,7 +369,7 @@ def parse_opcua(opc):
         message_type = "ReadRequest"
         nodes_to_read = opc.nodeid.string
         if isinstance(nodes_to_read, str):
-            nodes_list = {"0": nodes_to_read}
+            nodes_list = {0: nodes_to_read}
         else:
             nodes_list = {i: nodes_to_read[i] for i in range(len(nodes_to_read))}
         parsed_opcua["nodes_request_list"] = nodes_list
@@ -311,7 +380,7 @@ def parse_opcua(opc):
         nodes_identifiers = opc.nodeid.string
         if isinstance(nodes_identifiers, str):
             # only 1 node being written to
-            nodes_to_write = {"0": {
+            nodes_to_write = {0: {
                 "identifier": nodes_identifiers,
                 "value": nodes_values
             }}
@@ -326,13 +395,66 @@ def parse_opcua(opc):
         results = opc.Results
         if isinstance(results, int):
             # Only 1 result returned
-            write_result = {"0": results}
+            write_result = {0: results}
         else:
             write_result = {n: results[n] for n in range(len(results))}
         parsed_opcua["write_resp_status"] = write_result
     parsed_opcua["message_type"] = message_type
 
     return parsed_opcua
+
+
+def parse_dns(dns):
+    msg_type = 'request'
+    is_response = dns.flags.response
+    parsed_dns = {
+        "flags_raw": dns.flags.value,
+        # TODO: checks/formatting when multiple queries are contained in one packet
+        "queried_domain": dns.qry.name.value,
+        "query_type": dns.qry.type,
+    }
+    if is_response:
+        msg_type = 'response'
+        names = dns.resp.name
+        records = dns.a    # TODO: support for other record types
+        if isinstance(names, str):
+            answers = {0: {"name": names, "record": records}}
+        else:
+            answers = {i: {"name": name, "record": record}
+                       for i, (name, record) in enumerate(zip(names, records))}
+        parsed_dns['response'] = answers
+
+    parsed_dns['type'] = msg_type
+    return parsed_dns
+
+
+def parse_modbus(modbus):
+    parsed_modbus = {
+        "transaction_id": modbus[0].trans.id,
+        "unit_id": modbus[0].unit.id,
+        "length": modbus[0].len,
+        "function_code": modbus[1].func.code
+    }
+    try:
+        # try to parse query data
+        register = modbus[1].regnum16
+        register_val = modbus[1].regval.uint16
+
+        if isinstance(register, str):
+            # Only one register found in query
+            register = {0: {"number": register, "value": register_val}}
+        else:
+            register = {i: {"number": number, "value": value}
+                        for i, (number, value) in enumerate(zip(register, register_val))}
+        parsed_modbus['register'] = register
+    except AttributeError:
+        pass
+    return parsed_modbus
+
+
+def parse_http(http):
+    parsed_http = {}
+    return parsed_http
 
 
 def get_statcode_string(statcode_id):
