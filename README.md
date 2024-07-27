@@ -7,6 +7,7 @@ This script was designed to run on a device that has visibility to all OPCUA tra
 - ReadRequests
 - ReadResponses
 
+**Supported protocols**: ARP, IP, TCP, UDP, DNS, HTTP, OPCUA, Modbus
 
 ## Usage
 - Clone the repository and enter the project directory
