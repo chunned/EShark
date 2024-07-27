@@ -176,6 +176,91 @@ def create_index(es):
                                 "type": "array"
                             }
                         }
+                    },
+                    "dns": {
+                        "properties": {
+                            "queried_domain": {
+                                "type": "text"
+                            },
+                            "query_type": {
+                                "type": "text"
+                            },
+                            "response": {
+                                "type": "array"
+                            },
+                            "flags": {
+                                "type": "text"
+                            },
+                            "type": {
+                                "type": "text"
+                            }
+                        }
+                    },
+                    "modbus": {
+                        "properties": {
+                            "transaction_id": {
+                                "type": "integer"
+                            },
+                            "unit_id": {
+                                "type": "integer"
+                            },
+                            "length": {
+                                "type": "integer"
+                            },
+                            "function_code": {
+                                "type": "integer"
+                            },
+                            "register": {
+                                "type": "array"
+                            }
+                        }
+                    },
+                    "http": {
+                        "properties": {
+                            "connection": {
+                                "type": "text"
+                            },
+                            "accept": {
+                                "type": "text"
+                            },
+                            "method": {
+                                "type": "text"
+                            },
+                            "request_headers": {
+                                "type": "text"
+                            },
+                            "host": {
+                                "type": "text"
+                            },
+                            "authorization": {
+                                "type": "text"
+                            },
+                            "user_agent": {
+                                "type": "text"
+                            },
+                            "request_uri": {
+                                "type": "text"
+                            },
+                            "request_uri_full": {
+                                "type": "text"
+                            },
+                            "version": {
+                                "type": "text"
+                            },
+                            "uri": {
+                                "type": "text"
+                            },
+                            "response_headers": {
+                                "type": "text"
+                            },
+                            "response_code": {
+                                "type": "integer"
+                            },
+                            "response_data": {
+                                "type": "text"
+                            }
+
+                        }
                     }
                 }
             }
