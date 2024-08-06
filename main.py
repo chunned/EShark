@@ -306,7 +306,10 @@ def parse_packet(pkt):
     # Each layer is parsed in its own function
     interface = pkt.frame_info.interface.name
     timestamp = pkt.sniff_timestamp
-    frame = parse_frame(pkt.eth)
+    try:
+        frame = parse_frame(pkt.eth)
+    except AttributeError:
+        print(pkt)
 
     parsed = {"timestamp": timestamp, "interface": interface, "eth": frame}
     if frame['type'] == 'ARP':
@@ -422,12 +425,16 @@ def parse_udp(udp):
 def parse_opcua(opc):
     # opc should be the OPCUA layer of a Packet object from PyShark
     message_type = ''
+    try:
+        security_token_id = opc.security.tokenid
+    except AttributeError:
+        security_token_id = ''
     parsed_opcua = {
         "opcua_timestamp": opc.Timestamp,
         "secure_channel_id": opc.transport.scid,
         "security_request_id": opc.security.rqid,
         "security_sequence": opc.security.seq,
-        "security_token_id": opc.security.tokenid,
+        "security_token_id": security_token_id,
     }
     msg_type = opc.servicenodeid_numeric
     try:
@@ -500,7 +507,10 @@ def parse_dns(dns):
     if is_response:
         msg_type = 'response'
         names = dns.resp.name
-        records = dns.a    # TODO: support for other record types
+        try:
+            records = dns.a    # TODO: support for other record types
+        except AttributeError:
+            records = dns.aaaa
         if isinstance(names, str):
             answers = {0: {"name": names, "record": records}}
         else:
