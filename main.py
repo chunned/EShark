@@ -6,7 +6,6 @@ from os import getenv
 from dotenv import load_dotenv
 import argparse
 
-# TODO: FIGURE OUT HOW TO SET PREFERENCE FOR OPCUA ON PORT 53530
 
 # Load environment variables for required global variables
 load_dotenv()
@@ -45,227 +44,222 @@ def parse_arguments():
 def create_index(es):
     # Create ElasticSearch index
     # Originally altered from: https://github.com/vichargrave/espcap/blob/master/scripts/packet_template-7.x.sh
-    # TODO: add schema for new protocols: ARP, UDP, DNS, MODBUS, HTTP
     mappings = {
-        "dynamic": "true",
+        "dynamic": "false",
         "properties": {
             "timestamp": {
                 "type": "date"
             },
-            "layers": {
+            "eth": {
                 "properties": {
-                    "eth": {
-                        "properties": {
-                            "mac_src": {
-                                "type": "text"
-                            },
-                            "mac_dst": {
-                                "type": "text",
-                            },
-                            "type": {
-                                "type": "integer"
-                            },
-                            "interface": {
-                                "type": "text"
-                            }
-                        }
+                    "mac_src": {
+                        "type": "text"
                     },
-                    "arp": {
-                        "properties": {
-                            "opcode": {
-                                "type": "integer"
-                            },
-                            "src_mac": {
-                                "type": "text"
-                            },
-                            "src_ip": {
-                                "type": "ip"
-                            },
-                            "dst_mac": {
-                                "type": "text"
-                            },
-                            "dst_ip": {
-                                "type": "ip"
-                            },
-                        }
+                    "mac_dst": {
+                        "type": "text",
                     },
-                    "ip": {
-                        "properties": {
-                            "src": {
-                                "type": "ip"
-                            },
-                            "dst": {
-                                "type": "ip"
-                            },
-                            "protocol": {
-                                "type": "integer"
-                            }
-                        }
+                    "type": {
+                        "type": "text"
                     },
-                    "tcp": {
-                        "properties": {
-                            "port_src": {
-                                "type": "integer"
-                            },
-                            "port_dst": {
-                                "type": "integer"
-                            },
-                            "seq": {
-                                "type": "integer"
-                            },
-                            "stream": {
-                                "type": "integer"
-                            },
-                            "payload": {
-                                "type": "text"
-                            },
-                            "flags": {
-                                "type": "array"
-                            }
-                        }
+                    "interface": {
+                        "type": "text"
+                    }
+                }
+            },
+            "arp": {
+                "properties": {
+                    "opcode": {
+                        "type": "integer"
                     },
-                    "udp": {
-                        "properties": {
-                            "port_src": {
-                                "type": "integer"
-                            },
-                            "port_dst": {
-                                "type": "integer"
-                            },
-                            "stream": {
-                                "type": "integer"
-                            },
-                            "payload": {
-                                "type": "text"
-                            }
-                        }
+                    "src_mac": {
+                        "type": "text"
                     },
-                    "opcua": {
-                        "properties": {
-                            "opcua_timestamp": {
-                                "type": "text"
-                            },
-                            "secure_channel_id": {
-                                "type": "integer"
-                            },
-                            "security_request_id": {
-                                "type": "integer"
-                            },
-                            "security_sequence": {
-                                "type": "integer"
-                            },
-                            "security_token_id": {
-                                "type": "integer"
-                            },
-                            "status_code": {
-                                "type": "text"
-                            },
-                            "message_type": {
-                                "type": "text"
-                            },
-                            "nodes_response_list": {
-                                "type": "array"
-                            },
-                            "nodes_request_list": {
-                                "type": "array"
-                            },
-                            "write_req_details": {
-                                "type": "array"
-                            },
-                            "write_resp_status": {
-                                "type": "array"
-                            }
-                        }
+                    "src_ip": {
+                        "type": "ip"
                     },
-                    "dns": {
-                        "properties": {
-                            "queried_domain": {
-                                "type": "text"
-                            },
-                            "query_type": {
-                                "type": "text"
-                            },
-                            "response": {
-                                "type": "array"
-                            },
-                            "flags": {
-                                "type": "text"
-                            },
-                            "type": {
-                                "type": "text"
-                            }
-                        }
+                    "dst_mac": {
+                        "type": "text"
                     },
-                    "modbus": {
-                        "properties": {
-                            "transaction_id": {
-                                "type": "integer"
-                            },
-                            "unit_id": {
-                                "type": "integer"
-                            },
-                            "length": {
-                                "type": "integer"
-                            },
-                            "function_code": {
-                                "type": "integer"
-                            },
-                            "register": {
-                                "type": "array"
-                            }
-                        }
+                    "dst_ip": {
+                        "type": "ip"
                     },
-                    "http": {
-                        "properties": {
-                            "connection": {
-                                "type": "text"
-                            },
-                            "accept": {
-                                "type": "text"
-                            },
-                            "method": {
-                                "type": "text"
-                            },
-                            "request_headers": {
-                                "type": "text"
-                            },
-                            "host": {
-                                "type": "text"
-                            },
-                            "authorization": {
-                                "type": "text"
-                            },
-                            "user_agent": {
-                                "type": "text"
-                            },
-                            "request_uri": {
-                                "type": "text"
-                            },
-                            "request_uri_full": {
-                                "type": "text"
-                            },
-                            "version": {
-                                "type": "text"
-                            },
-                            "uri": {
-                                "type": "text"
-                            },
-                            "response_headers": {
-                                "type": "text"
-                            },
-                            "response_code": {
-                                "type": "integer"
-                            },
-                            "response_data": {
-                                "type": "text"
-                            }
-
-                        }
+                }
+            },
+            "ip": {
+                "properties": {
+                    "src": {
+                        "type": "ip"
+                    },
+                    "dst": {
+                        "type": "ip"
+                    },
+                    "protocol": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "tcp": {
+                "properties": {
+                    "port_src": {
+                        "type": "integer"
+                    },
+                    "port_dst": {
+                        "type": "integer"
+                    },
+                    "seq": {
+                        "type": "string"
+                    },
+                    "stream": {
+                        "type": "string"
+                    },
+                    "payload": {
+                        "type": "text"
+                    },
+                    "flags": {
+                        "type": "nested"
+                    }
+                }
+            },
+            "udp": {
+                "properties": {
+                    "port_src": {
+                        "type": "integer"
+                    },
+                    "port_dst": {
+                        "type": "integer"
+                    },
+                    "stream": {
+                        "type": "integer"
+                    },
+                    "payload": {
+                        "type": "text"
+                    }
+                }
+            },
+            "opcua": {
+                "properties": {
+                    "opcua_timestamp": {
+                        "type": "text"
+                    },
+                    "secure_channel_id": {
+                        "type": "integer"
+                    },
+                    "security_request_id": {
+                        "type": "integer"
+                    },
+                    "security_sequence": {
+                        "type": "integer"
+                    },
+                    "security_token_id": {
+                        "type": "integer"
+                    },
+                    "status_code": {
+                        "type": "text"
+                    },
+                    "message_type": {
+                        "type": "text"
+                    },
+                    "nodes_response_list": {
+                        "type": "nested"
+                    },
+                    "nodes_request_list": {
+                        "type": "nested"
+                    },
+                    "write_req_details": {
+                        "type": "nested"
+                    },
+                    "write_resp_status": {
+                        "type": "nested"
+                    }
+                }
+            },
+            "dns": {
+                "properties": {
+                    "queried_domain": {
+                        "type": "text"
+                    },
+                    "query_type": {
+                        "type": "text"
+                    },
+                    "response": {
+                        "type": "nested"
+                    },
+                    "flags": {
+                        "type": "text"
+                    },
+                    "type": {
+                        "type": "text"
+                    }
+                }
+            },
+            "modbus": {
+                "properties": {
+                    "transaction_id": {
+                        "type": "integer"
+                    },
+                    "unit_id": {
+                        "type": "integer"
+                    },
+                    "length": {
+                        "type": "integer"
+                    },
+                    "function_code": {
+                        "type": "integer"
+                    },
+                    "register": {
+                        "type": "nested"
+                    }
+                }
+            },
+            "http": {
+                "properties": {
+                    "connection": {
+                        "type": "text"
+                    },
+                    "accept": {
+                        "type": "text"
+                    },
+                    "method": {
+                        "type": "text"
+                    },
+                    "request_headers": {
+                        "type": "text"
+                    },
+                    "host": {
+                        "type": "text"
+                    },
+                    "authorization": {
+                        "type": "text"
+                    },
+                    "user_agent": {
+                        "type": "text"
+                    },
+                    "request_uri": {
+                        "type": "text"
+                    },
+                    "request_uri_full": {
+                        "type": "text"
+                    },
+                    "version": {
+                        "type": "text"
+                    },
+                    "uri": {
+                        "type": "text"
+                    },
+                    "response_headers": {
+                        "type": "text"
+                    },
+                    "response_code": {
+                        "type": "integer"
+                    },
+                    "response_data": {
+                        "type": "text"
                     }
                 }
             }
         }
     }
+
     print(f'Creating index: {INDEX_NAME}')
     try:
         es.indices.create(index=INDEX_NAME, mappings=mappings)
@@ -356,14 +350,14 @@ def parse_packet(pkt):
 def parse_frame(frame):
     # Parse frame (Ethernet layer) data
     frametype = frame.type
-    if frametype == '2054':
-        frametype = 'ARP'
-    elif frametype == '2048':
-        frametype = 'IP'
+    if frametype == 2054:
+        ftype = 'ARP'
+    elif frametype == 2048:
+        ftype = 'IP'
     parsed_frame = {
         "mac_src": frame.src.resolved,
         "mac_dst": frame.dst.resolved,
-        "type": frametype,
+        "type": ftype,
     }
     return parsed_frame
 
