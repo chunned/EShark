@@ -1,4 +1,7 @@
-# espcap-opcua
+# EShark
+
+**E**lastic**S**earch + Py**Shark** = **EShark**
+
 This project is essentially a rewrite of the original [espcap](https://github.com/vichargrave/espcap) by [Vic Hargrave](https://github.com/vichargrave), built specifically for OPCUA applications.
 
 This script was designed to run on a device that has visibility to all OPCUA traffic. Currently, the script looks for:
@@ -24,4 +27,8 @@ python main.py -m file -f <path/to/pcap>
 **Live Capture**
 ```python
 python main.py -m live -i <interface> -b <bpf>
+```
+To capture on multiple interfaces, pass a string with the interface names separated by commas (don't include spaces):
+```python
+python main.py -m live -i "eth0, eth1"
 ```
