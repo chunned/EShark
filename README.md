@@ -15,6 +15,7 @@ This script was designed to run on a device that has visibility to all OPCUA tra
 ## Usage
 - Clone the repository and enter the project directory
 - Create and activate a new venv: `python3 -m venv venv && chmod +x venv/bin/activate && source venv/bin/activate`
+  - If on Windows: `python3 -m venv venv && chmod +x venv/Scripts/activate && source venv/Scripts/activate`
 - Install dependencies: `pip install -r requirements.txt`
 - Set environment variables in .env.example and rename to .env: `mv .env.example .env`
 - Run `main.py`
