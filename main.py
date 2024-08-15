@@ -5,8 +5,14 @@ import elastic_transport
 from os import getenv
 from dotenv import load_dotenv
 import argparse
+import logging
 
-
+log = logging.getLogger(__name__)
+logging.basicConfig(
+    filename='eshark.log',
+    format='%(asctime)s %(message)s',
+    level=logging.DEBUG
+)
 # Load environment variables for required global variables
 load_dotenv()
 INDEX_NAME = getenv("INDEX_NAME")
@@ -260,14 +266,18 @@ def create_index(es):
         }
     }
 
-    print(f'Creating index: {INDEX_NAME}')
+    log.info(f'Attempting to create index: {INDEX_NAME}')
     try:
-        es.indices.create(index=INDEX_NAME, mappings=mappings)
-    except elasticsearch.BadRequestError:
-        print('Index already exists, moving on.')
+        resp = es.indices.create(index=INDEX_NAME, mappings=mappings)
+        log.info(f'Index created successfully: {resp}')
+    except elasticsearch.BadRequestError as err:
+        if 'already exists' in str(err):
+            print(f'Index already exists, moving on: {err}')
+            log.info(f'Index already exists: {err}')
 
 
 def capture(es, mode, interface, file, bpf, packet_count):
+    log.info('-----------STARTING CAPTURE-----------\n\n')
     if mode == 'file':
         cap = pyshark.FileCapture(
             input_file=file,
@@ -280,6 +290,7 @@ def capture(es, mode, interface, file, bpf, packet_count):
             parsed = parse_packet(packet)
             packets.append(parsed)
             helpers.bulk(client=es, actions=index_packets(cap=packets))
+            packets.clear()
     elif mode == 'live':
         interface = interface.split(',')
 
@@ -297,6 +308,7 @@ def capture(es, mode, interface, file, bpf, packet_count):
             parsed = parse_packet(packet)
             packets.append(parsed)
             helpers.bulk(client=es, actions=index_packets(cap=packets))
+            packets.clear()
 
     cap.close()
 
@@ -805,49 +817,67 @@ def index_packets(cap):
 
 
 def main(args):
+
+    log.info(f"EShark started with arguments: {args}")
+
     # Command-line options
     capture_mode = args.mode
+    log.info(f"Capture mode: {capture_mode}")
     if capture_mode == 'live':
         interface = args.interface
         pcapfile = ''
+        log.info(f"Interface(s) to capture on: {interface}")
     elif capture_mode == 'file':
         pcapfile = args.file
         interface = ''
+        log.info(f"PCAP file to read: {pcapfile}")
     else:
         print(f'[FATAL ERROR]: Unrecognized mode: {capture_mode}')
+        log.fatal(f"Unrecognized operating mode: {capture_mode}. Valid modes are: live, file")
         return 0
 
     try:
         packet_count = args.packet_count
+        log.info(f"Packet count set to: {packet_count}")
     except AttributeError:
         packet_count = 0
 
     try:
         bpf = args.bpf
+        log.info(f"BPF set to: {bpf}")
     except AttributeError:
         bpf = ''
     # Connect to ElasticSearch
+    print("Connecting to ElasticSearch...")
     try:
         es = Elasticsearch(ELASTIC_ENDPOINT, api_key=API_KEY)
-        print(es.info())
+        log.info(f"Connected to ElasticSearch: {es.info()}")
     except elasticsearch.AuthenticationException:
         print('ERROR: Unable to authenticate. Make sure API key is correct.')
+        log.error('Unable to authenticate. Make sure API key is correct.')
         return 0
     except elasticsearch.AuthorizationException:
         print('ERROR: Unauthorized. Make sure API key has correct permissions.')
+        log.error('Unauthorized. Make sure API key has correct permissions.')
         return 0
     except elastic_transport.ConnectionError:
-        print('ERROR: Connection error. Make sure IP address/domain for ElasticSearch instance is valid.')
+        print('ERROR: Connection failed to establish. Make sure IP address/domain for ElasticSearch instance is valid.')
+        log.error('ERROR: Connection failed to establish. Make sure IP address/domain for ElasticSearch instance is valid.')
         return 0
     except elastic_transport.ConnectionTimeout:
         print('ERROR: Connection timed out. Make sure IP address/domain and port for ElasticSearch are correct.')
+        log.error('Connection timed out. Make sure IP address/domain and port for ElasticSearch are correct.')
         return 0
 
     if es:
+        print('ElasticSearch connection successful.')
+        print('Creating index...')
         # Connection to ElasticSearch succeeded. Create the index:
         create_index(es)
         # Index is now created (or already existed)
         # Start capture
+        print('Starting capture...')
+        log.info('Starting Capture...')
         capture(es, capture_mode, interface, pcapfile, bpf, packet_count)
 
 
