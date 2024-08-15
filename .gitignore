@@ -3,3 +3,5 @@ venv
 .env
 test*
 *.pcapng
+*.log
+get_interfaces.sh
