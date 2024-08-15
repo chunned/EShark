@@ -30,5 +30,5 @@ python main.py -m live -i <interface> -b <bpf>
 ```
 To capture on multiple interfaces, pass a string with the interface names separated by commas (don't include spaces):
 ```python
-python main.py -m live -i "eth0, eth1"
+python main.py -m live -i "eth0,eth1"
 ```
