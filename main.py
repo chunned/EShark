@@ -116,16 +116,16 @@ def create_index(es):
                         "type": "integer"
                     },
                     "seq": {
-                        "type": "string"
+                        "type": "text"
                     },
                     "stream": {
-                        "type": "string"
+                        "type": "text"
                     },
                     "payload": {
                         "type": "text"
                     },
                     "flags": {
-                        "type": "nested"
+                        "type": "keyword"
                     }
                 }
             },
@@ -147,9 +147,6 @@ def create_index(es):
             },
             "opcua": {
                 "properties": {
-                    "opcua_timestamp": {
-                        "type": "text"
-                    },
                     "secure_channel_id": {
                         "type": "integer"
                     },
@@ -166,7 +163,7 @@ def create_index(es):
                         "type": "text"
                     },
                     "message_type": {
-                        "type": "text"
+                        "type": "keyword"
                     },
                     "nodes_response_list": {
                         "type": "nested"
@@ -175,7 +172,8 @@ def create_index(es):
                         "type": "nested"
                     },
                     "write_req_details": {
-                        "type": "nested"
+                        "type": "nested",
+                        "dynamic": "true"
                     },
                     "write_resp_status": {
                         "type": "nested"
@@ -326,7 +324,7 @@ def parse_packet(pkt):
     try:
         # If timestamp arrives as raw epoch time instead of a datetime object, we need to convert it
         timestamp = datetime.fromtimestamp(float(timestamp)).strftime('%Y-%m-%d %H:%M:%S.%f')
-    except TypeError:
+    except Exception:
         # Timestamp is in correct format; no need to convert
         pass
     log.debug(f'Packet timestamp: {timestamp}')
@@ -515,7 +513,6 @@ def parse_opcua(opc):
         security_token_id = ''
     log.debug(f'Security token ID: {security_token_id}')
     parsed_opcua = {
-        "opcua_timestamp": opc.Timestamp,
         "secure_channel_id": opc.transport.scid,
         "security_request_id": opc.security.rqid,
         "security_sequence": opc.security.seq,
@@ -556,16 +553,16 @@ def parse_opcua(opc):
         nodes_identifiers = opc.nodeid.string
         if isinstance(nodes_identifiers, str):
             # only 1 node being written to
-            nodes_to_write = {0: {
+            nodes_to_write = [{
                 "identifier": nodes_identifiers,
                 "value": nodes_values
-            }}
+            }]
         else:
             # multiple nodes being written to
-            nodes_to_write = {j: {"identifier": identifier, "value": value}
-                              for j, (identifier, value) in enumerate(zip(nodes_identifiers, nodes_values))}
+            nodes_to_write = [{"identifier": identifier, "value": value}
+                              for j, (identifier, value) in enumerate(zip(nodes_identifiers, nodes_values))]
         parsed_opcua["write_req_details"] = nodes_to_write
-
+        print(nodes_to_write)
     elif msg_type == 676:
         message_type = "WriteResponse"
         results = opc.Results
