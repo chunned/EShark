@@ -6,10 +6,13 @@ from os import getenv
 from dotenv import load_dotenv
 import argparse
 import logging
+from datetime import datetime
 
 log = logging.getLogger(__name__)
+now = datetime.now()
+logfile = f'./logs/eshark-{now.strftime("%Y%m%d-%H%M%S")}.log'
 logging.basicConfig(
-    filename='eshark.log',
+    filename=logfile,
     format='%(asctime)s %(message)s',
     level=logging.DEBUG
 )
@@ -316,41 +319,69 @@ def capture(es, mode, interface, file, bpf, packet_count):
 def parse_packet(pkt):
     # Takes a Packet object received from Tshark and parses the relevant fields
     # Each layer is parsed in its own function
+    log.debug('Parsing packet...')
     interface = pkt.frame_info.interface.name
+    log.debug(f'Packet arrived on interface: {interface}')
     timestamp = pkt.sniff_timestamp
-    try:
+    log.debug(f'Packet timestamp: {timestamp}')
+
+    lowest_layer = pkt.layers[0].layer_name
+    log.debug(f'Packet lowest layer: {lowest_layer}')
+
+    if lowest_layer == 'eth':
+        log.debug('Parsing Ethernet frame.')
         frame = parse_frame(pkt.eth)
-    except AttributeError:
-        print(pkt)
+    elif lowest_layer == 'sll':
+        log.debug('Parsing SLL frame.')
+        frame = parse_sll(pkt.sll)
+    else:
+        raise Exception(f'Unknown layer: {lowest_layer}')
 
     parsed = {"timestamp": timestamp, "interface": interface, "eth": frame}
+    log.debug(f'Parsed frame: {frame}')
     if frame['type'] == 'ARP':
+        log.debug('ARP layer identified.')
         arp = parse_arp(pkt.arp)
+        log.debug(f'Parsed ARP layer: {arp}')
         parsed['arp'] = arp
+
     elif frame['type'] == 'IP':
+        log.debug('IP layer identified.')
         ip = parse_ip(pkt.ip)
+        log.debug(f'Parsed IP layer: {ip}')
         parsed['ip'] = ip
 
         if ip["protocol"] == 6:
+            log.debug('TCP layer identified.')
             tcp = parse_tcp(pkt.tcp)
+            log.debug(f'Parsed TCP layer: {tcp}')
             parsed["tcp"] = tcp
 
         elif ip["protocol"] == 17:
+            log.debug('UDP layer identified.')
             udp = parse_udp(pkt.udp)
+            log.debug(f'Parsed UDP layer: {udp}')
             parsed["udp"] = udp
 
         applayer_protocol = pkt.highest_layer
-
+        log.debug(f'Packet highest layer: {applayer_protocol}')
         if applayer_protocol in ["TCP", "UDP"]:
+            log.debug('Highest layer is Transport/L4; parsing complete.')
             return parsed
         elif applayer_protocol == "OPCUA":
+            log.debug('OPCUA layer identified.')
             opcua = parse_opcua(pkt.opcua)
+            log.debug(f'Parsed OPCUA layer: {opcua}')
             parsed["opcua"] = opcua
         elif applayer_protocol == "DNS":
+            log.debug('DNS layer identified.')
             dns = parse_dns(pkt.dns)
+            log.debug(f'Parsed DNS layer: {dns}')
             parsed["dns"] = dns
         elif applayer_protocol == "MODBUS":
+            log.debug('MODBUS layer identified.')
             modbus = parse_modbus([pkt.mbtcp, pkt.modbus])
+            log.debug(f'Parsed MODBUS layer: {modbus}')
             parsed['modbus'] = modbus
         else:
             try:
@@ -365,25 +396,60 @@ def parse_packet(pkt):
 def parse_frame(frame):
     # Parse frame (Ethernet layer) data
     frametype = frame.type
-    if frametype == 2054:
-        ftype = 'ARP'
-    elif frametype == 2048:
-        ftype = 'IP'
+    ftype = check_frame_type(frametype)
+    log.info(f'Ethernet frame type: {ftype}')
     parsed_frame = {
         "mac_src": frame.src.resolved,
         "mac_dst": frame.dst.resolved,
         "type": ftype,
     }
+    log.info(f'Parsed Ethernet frame: {parsed_frame}')
     return parsed_frame
 
 
+def parse_sll(sll):
+    # Parse SLL layer data
+    # SLL is the pseudo-protocol used by libpcap: https://wiki.wireshark.org/SLL
+    frametype = sll.etype
+    ftype = check_frame_type(frametype)
+    log.info(f'SLL frame type: {ftype}')
+    mac_src = sll.src.eth
+    parsed_sll = {
+        "mac_src": mac_src,
+        "type": ftype
+    }
+    log.info(f'Parsed SLL frame: {parsed_sll}')
+    return parsed_sll
+
+
+def check_frame_type(frametype: int):
+    # Check if frame is ARP or IP
+    if frametype == 2054:
+        ftype = 'ARP'
+    elif frametype == 2048:
+        ftype = 'IP'
+    else:
+        raise Exception(f'Unknown frame type: {frametype}')
+    return ftype
+
+
 def parse_arp(arp):
+    opcode = arp.opcode
+    log.debug(f'ARP opcode: {opcode}')
+    src_mac = arp.src.hw.mac
+    log.debug(f'ARP source MAC: {src_mac}')
+    src_ip = arp.src.proto.ipv4
+    log.debug(f'ARP source IP: {src_ip}')
+    dst_mac = arp.dst.hw.mac
+    log.debug(f'ARP destination MAC: {dst_mac}')
+    dst_ip = arp.dst.proto.ipv4
+    log.debug(f'ARP destination IP: {dst_ip}')
     parsed_arp = {
-        "opcode": arp.opcode,
-        "src_mac": arp.src.hw.mac,
-        "src_ip": arp.src.proto.ipv4,
-        "dst_mac": arp.dst.hw.mac,
-        "dst_ip": arp.dst.proto.ipv4
+        "opcode": opcode,
+        "src_mac": src_mac,
+        "src_ip": src_ip,
+        "dst_mac": dst_mac,
+        "dst_ip": dst_ip
     }
     return parsed_arp
 
@@ -403,6 +469,7 @@ def parse_tcp(tcp):
         payload = str(tcp.payload)
     except AttributeError:
         payload = ''
+    log.debug(f'TCP payload: {payload}')
     # get TCP flags
     flags = tcp.flags
     active_flags = []
@@ -411,7 +478,7 @@ def parse_tcp(tcp):
         if getattr(flags, f):
             # If attribute is True, append flag to list of active flags for this packet
             active_flags.append(f)
-
+    log.debug(f'TCP flags: {active_flags}')
     parsed_tcp = {
         "port_src": tcp.srcport,
         "port_dst": tcp.dstport,
@@ -420,7 +487,6 @@ def parse_tcp(tcp):
         "payload_raw": payload,
         "flags": active_flags
     }
-#    print(type(payload))
     return parsed_tcp
 
 
@@ -441,6 +507,7 @@ def parse_opcua(opc):
         security_token_id = opc.security.tokenid
     except AttributeError:
         security_token_id = ''
+    log.debug(f'Security token ID: {security_token_id}')
     parsed_opcua = {
         "opcua_timestamp": opc.Timestamp,
         "secure_channel_id": opc.transport.scid,
@@ -453,7 +520,7 @@ def parse_opcua(opc):
         status_code = get_statcode_string(opc.StatusCode)
     except AttributeError:
         status_code = None
-
+    log.debug(f'OPCUA message type: {msg_type}')
     parsed_opcua["status_code"] = status_code
 
     if msg_type == 634:
@@ -542,11 +609,14 @@ def parse_modbus(modbus):
         "function_code": modbus[1].func.code
     }
     try:
+        log.debug('Attempting to parse Modbus payload...')
         # try to parse query data
         register = modbus[1].regnum16
+        log.debug(f'Register(s): {register}')
         register_val = modbus[1].regval.uint16
-
-        if isinstance(register, str):
+        log.debug(f'Register value(s): {register_val}')
+        if isinstance(register, int):
+            log.debug('Only one register found in query')
             # Only one register found in query
             register = {0: {"number": register, "value": register_val}}
         else:
