@@ -329,7 +329,6 @@ def parse_packet(pkt):
     except TypeError:
         # Timestamp is in correct format; no need to convert
         pass
-    print(timestamp)
     log.debug(f'Packet timestamp: {timestamp}')
 
     lowest_layer = pkt.layers[0].layer_name
