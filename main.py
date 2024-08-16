@@ -325,7 +325,7 @@ def parse_packet(pkt):
     timestamp = pkt.sniff_timestamp
     try:
         # If timestamp arrives as raw epoch time instead of a datetime object, we need to convert it
-        timestamp = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S.%f')
+        timestamp = datetime.fromtimestamp(float(timestamp)).strftime('%Y-%m-%d %H:%M:%S.%f')
     except TypeError:
         # Timestamp is in correct format; no need to convert
         pass
