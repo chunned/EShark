@@ -323,6 +323,13 @@ def parse_packet(pkt):
     interface = pkt.frame_info.interface.name
     log.debug(f'Packet arrived on interface: {interface}')
     timestamp = pkt.sniff_timestamp
+    try:
+        # If timestamp arrives as raw epoch time instead of a datetime object, we need to convert it
+        timestamp = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S.%f')
+    except TypeError:
+        # Timestamp is in correct format; no need to convert
+        pass
+    print(timestamp)
     log.debug(f'Packet timestamp: {timestamp}')
 
     lowest_layer = pkt.layers[0].layer_name
