@@ -543,7 +543,11 @@ def parse_opcua(opc):
         "security_sequence": seq,
         "security_token_id": security_token_id,
     }
-    msg_type = opc.servicenodeid_numeric
+    try:
+        msg_type = opc.servicenodeid_numeric
+    except AttributeError:
+        msg_type = ''
+        log.debug('No OPCUA message type found')
     try:
         status_code = get_statcode_string(opc.StatusCode)
     except AttributeError:
