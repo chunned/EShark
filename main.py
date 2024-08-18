@@ -8,6 +8,7 @@ import argparse
 import logging
 from datetime import datetime
 
+
 log = logging.getLogger(__name__)
 now = datetime.now()
 logfile = f'./logs/eshark-{now.strftime("%Y%m%d-%H%M%S")}.log'
@@ -56,7 +57,7 @@ def create_index(es):
     mappings = {
         "dynamic": "false",
         "properties": {
-            "timestamp": {
+            "@timestamp": {
                 "type": "date"
             },
             "eth": {
@@ -322,7 +323,9 @@ def parse_packet(pkt):
     timestamp = pkt.sniff_timestamp
     try:
         # If timestamp arrives as raw epoch time instead of a datetime object, we need to convert it
-        timestamp = datetime.fromtimestamp(float(timestamp)).strftime('%Y-%m-%dT%H:%M:%S.%f')
+        epoch = float(timestamp)
+        localtime = datetime.fromtimestamp(epoch).astimezone()
+        timestamp = localtime.strftime('%Y-%m-%dT%H:%M:%S.%f')
     except Exception:
         # Timestamp is in correct format; no need to convert
         pass
@@ -340,7 +343,7 @@ def parse_packet(pkt):
     else:
         raise Exception(f'Unknown layer: {lowest_layer}')
 
-    parsed = {"timestamp": timestamp, "interface": interface, "eth": frame}
+    parsed = {"@timestamp": timestamp, "interface": interface, "eth": frame}
     log.debug(f'Parsed frame: {frame}')
     if frame['type'] == 'ARP':
         log.debug('ARP layer identified.')
