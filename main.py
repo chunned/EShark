@@ -166,17 +166,16 @@ def create_index(es):
                         "type": "keyword"
                     },
                     "nodes_response_list": {
-                        "type": "nested"
+                        "type": "object"
                     },
                     "nodes_request_list": {
-                        "type": "nested"
+                        "type": "object"
                     },
                     "write_req_details": {
-                        "type": "nested",
-                        "dynamic": "true"
+                        "type": "object",
                     },
                     "write_resp_status": {
-                        "type": "nested"
+                        "type": "object"
                     }
                 }
             },
@@ -553,16 +552,15 @@ def parse_opcua(opc):
         nodes_identifiers = opc.nodeid.string
         if isinstance(nodes_identifiers, str):
             # only 1 node being written to
-            nodes_to_write = [{
+            nodes_to_write = {0: {
                 "identifier": nodes_identifiers,
                 "value": nodes_values
-            }]
+            }}
         else:
             # multiple nodes being written to
-            nodes_to_write = [{"identifier": identifier, "value": value}
-                              for j, (identifier, value) in enumerate(zip(nodes_identifiers, nodes_values))]
+            nodes_to_write = {j: {"identifier": identifier, "value": value}
+                              for j, (identifier, value) in enumerate(zip(nodes_identifiers, nodes_values))}
         parsed_opcua["write_req_details"] = nodes_to_write
-        print(nodes_to_write)
     elif msg_type == 676:
         message_type = "WriteResponse"
         results = opc.Results
