@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 import argparse
 import logging
 from datetime import datetime
+import pytz
+from tzlocal import get_localzone
 
 
 log = logging.getLogger(__name__)
@@ -22,6 +24,17 @@ load_dotenv()
 INDEX_NAME = getenv("INDEX_NAME")
 ELASTIC_ENDPOINT = getenv("ELASTICSEARCH_ENDPOINT")
 API_KEY = getenv("API_KEY")
+
+
+def local_to_utc(timestamp):
+    # Utility function that converts timestamp from local timezone to UTC
+    sys_tz = get_localzone()
+    local_tz = pytz.timezone(str(sys_tz))
+    local_dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f")
+    local_dt2 = local_tz.localize(local_dt)
+    utc_dt = local_dt2.astimezone(pytz.UTC)
+    utc_str = utc_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return utc_str
 
 
 def parse_arguments():
@@ -329,7 +342,8 @@ def parse_packet(pkt):
     except Exception:
         # Timestamp is in correct format; no need to convert
         pass
-    log.debug(f'Packet timestamp: {timestamp}')
+    timestamp_utc = local_to_utc(timestamp)
+    log.debug(f'Packet timestamp: {timestamp_utc}')
 
     lowest_layer = pkt.layers[0].layer_name
     log.debug(f'Packet lowest layer: {lowest_layer}')
@@ -343,7 +357,7 @@ def parse_packet(pkt):
     else:
         raise Exception(f'Unknown layer: {lowest_layer}')
 
-    parsed = {"@timestamp": timestamp, "interface": interface, "eth": frame}
+    parsed = {"@timestamp": timestamp_utc, "interface": interface, "eth": frame}
     log.debug(f'Parsed frame: {frame}')
     if frame['type'] == 'ARP':
         log.debug('ARP layer identified.')

@@ -1,4 +1,7 @@
-pyshark
-elasticsearch
+pyshark~=0.6
+elasticsearch~=8.15.0
 elastic-transport
-python-dotenv
+python-dotenv~=1.0.1
+
+pytz~=2024.1
+tzlocal~=5.2
