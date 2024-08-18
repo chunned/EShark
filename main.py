@@ -508,13 +508,36 @@ def parse_opcua(opc):
     message_type = ''
     try:
         security_token_id = opc.security.tokenid
+        log.debug(f'Security token ID: {security_token_id}')
     except AttributeError:
         security_token_id = ''
-    log.debug(f'Security token ID: {security_token_id}')
+        log.debug('No security token found')
+            
+    try:
+        scid = opc.transport.scid
+        log.debug(f'Secure channel ID: {scid}')
+    except AttributeError:
+        scid = ''
+        log.debug('No secure channel ID found')
+    
+    try:
+        rqid = opc.security.rqid
+        log.debug(f'Security request ID: {rqid}')
+    except AttributeError:
+        rqid = ''
+        log.debug('No security request ID found')
+
+    try:
+        seq = opc.security.seq
+        log.debug(f'Security sequence ID: {seq}')
+    except AttributeError:
+        seq = ''
+        log.debug('No security sequence ID found')
+
     parsed_opcua = {
-        "secure_channel_id": opc.transport.scid,
-        "security_request_id": opc.security.rqid,
-        "security_sequence": opc.security.seq,
+        "secure_channel_id": scid,
+        "security_request_id": rqid,
+        "security_sequence": seq,
         "security_token_id": security_token_id,
     }
     msg_type = opc.servicenodeid_numeric
