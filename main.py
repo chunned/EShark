@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 import pytz
 from tzlocal import get_localzone
+import copy
 
 
 log = logging.getLogger(__name__)
@@ -179,18 +180,21 @@ def create_index(es):
                     "message_type": {
                         "type": "keyword"
                     },
-                    "nodes_response_list": {
-                        "type": "object"
-                    },
-                    "nodes_request_list": {
-                        "type": "object"
-                    },
-                    "write_req_details": {
+                    "request": {
                         "type": "object",
+                        "properties": {
+                            "identifier": { "type": "keyword" },
+                            "index": { "type": "integer" },
+                            "value": { "type": "integer" }
+                        }
                     },
-                    "write_resp_status": {
-                        "type": "object"
-                    }
+                    "response": {
+                        "type": "object",
+                        "properties": {
+                            "index": { "type": "integer" },
+                            "value": {"type": "integer"},
+                        }
+                    },
                 }
             },
             "dns": {
@@ -302,7 +306,13 @@ def capture(es, mode, interface, file, bpf, packet_count):
         packets = []
         for packet in cap:
             parsed = parse_packet(packet)
-            packets.append(parsed)
+            if parsed["multi_packet"]:
+                expanded = expand_multipacket(parsed)
+                for i in expanded:
+                    packets.append(i)
+            else:
+                packets.append(parsed)
+            print(parsed)
             helpers.bulk(client=es, actions=index_packets(cap=packets))
             packets.clear()
     elif mode == 'live':
@@ -320,7 +330,13 @@ def capture(es, mode, interface, file, bpf, packet_count):
         packets = []
         for packet in cap.sniff_continuously(packet_count=packet_count):
             parsed = parse_packet(packet)
-            packets.append(parsed)
+            if parsed["multi_packet"]:
+                # Packet is flagged as a multi-packet, i.e. an object containing multiple packets
+                multipacket = expand_multipacket(parsed)
+                for p in multipacket:
+                    packets.append(p)
+            else:
+                packets.append(parsed)
             helpers.bulk(client=es, actions=index_packets(cap=packets))
             packets.clear()
 
@@ -357,7 +373,7 @@ def parse_packet(pkt):
     else:
         raise Exception(f'Unknown layer: {lowest_layer}')
 
-    parsed = {"@timestamp": timestamp_utc, "interface": interface, "eth": frame}
+    parsed = {"@timestamp": timestamp_utc, "interface": interface, "eth": frame, "multi_packet": False}
     log.debug(f'Parsed frame: {frame}')
     if frame['type'] == 'ARP':
         log.debug('ARP layer identified.')
@@ -392,6 +408,8 @@ def parse_packet(pkt):
             log.debug('OPCUA layer identified.')
             opcua = parse_opcua(pkt.opcua)
             log.debug(f'Parsed OPCUA layer: {opcua}')
+            if opcua["multi_packet"]:
+                parsed["multi_packet"] = True
             parsed["opcua"] = opcua
         elif applayer_protocol == "DNS":
             log.debug('DNS layer identified.')
@@ -552,6 +570,7 @@ def parse_opcua(opc):
         log.debug('No security sequence ID found')
 
     parsed_opcua = {
+        "multi_packet": False,
         "secure_channel_id": scid,
         "security_request_id": rqid,
         "security_sequence": seq,
@@ -574,21 +593,29 @@ def parse_opcua(opc):
         try:
             nodes_response_value = opc.Double
             if isinstance(nodes_response_value, float):
-                nodes_list = {0: nodes_response_value}
+                parsed_opcua["response"] = {
+                    "index": 0,
+                    "value": nodes_response_value
+                }
             else:
-                nodes_list = {i: nodes_response_value[i] for i in range(len(nodes_response_value))}
-            parsed_opcua["nodes_response_list"] = nodes_list
+                nodes_list = [nodes_response_value[i] for i in range(len(nodes_response_value))]
+                parsed_opcua["response"] = nodes_list
+                parsed_opcua["multi_packet"] = True
         except AttributeError:
-            parsed_opcua["nodes_response_list"] = {}
+            parsed_opcua["response"] = None
 
     elif msg_type == 631:
         message_type = "ReadRequest"
         nodes_to_read = opc.nodeid.string
         if isinstance(nodes_to_read, str):
-            nodes_list = {0: nodes_to_read}
+            parsed_opcua["request"] = {
+                "index": 0,
+                "identifier": nodes_to_read
+            }
         else:
-            nodes_list = {i: nodes_to_read[i] for i in range(len(nodes_to_read))}
-        parsed_opcua["nodes_request_list"] = nodes_list
+            nodes_list = [nodes_to_read[i] for i in range(len(nodes_to_read))]
+            parsed_opcua["request"] = nodes_list
+            parsed_opcua["multi_packet"] = True
 
     elif msg_type == 673:
         message_type = "WriteRequest"
@@ -596,24 +623,32 @@ def parse_opcua(opc):
         nodes_identifiers = opc.nodeid.string
         if isinstance(nodes_identifiers, str):
             # only 1 node being written to
-            nodes_to_write = {0: {
+            parsed_opcua["request"] = {
+                "index": 0,
                 "identifier": nodes_identifiers,
                 "value": nodes_values
-            }}
+            }
         else:
             # multiple nodes being written to
-            nodes_to_write = {j: {"identifier": identifier, "value": value}
-                              for j, (identifier, value) in enumerate(zip(nodes_identifiers, nodes_values))}
-        parsed_opcua["write_req_details"] = nodes_to_write
+            nodes_to_write = [{"identifier": identifier, "value": value}
+                              for j, (identifier, value) in enumerate(zip(nodes_identifiers, nodes_values))]
+            parsed_opcua["request"] = nodes_to_write
+            parsed_opcua["multi_packet"] = True
+
     elif msg_type == 676:
         message_type = "WriteResponse"
         results = opc.Results
         if isinstance(results, int):
             # Only 1 result returned
-            write_result = {0: results}
+            parsed_opcua["response"] = {
+                "index": 0,
+                "value": results
+            }
         else:
-            write_result = {n: results[n] for n in range(len(results))}
-        parsed_opcua["write_resp_status"] = write_result
+            write_result = [results[n] for n in range(len(results))]
+            parsed_opcua["response"] = write_result
+            parsed_opcua["multi_packet"] = True
+
     parsed_opcua["message_type"] = message_type
 
     return parsed_opcua
@@ -929,6 +964,49 @@ def index_packets(cap):
             "_source": packet
         }
         yield action
+
+
+def expand_multipacket(multipacket):
+    opc = multipacket["opcua"]
+    resp = False
+    req = False
+    mtype = opc["message_type"]
+    if mtype in ["ReadRequest", "WriteRequest"]:
+        req = opc["request"]
+        num_to_duplicate = len(req)
+    elif opc["message_type"] in ["ReadResponse", "WriteResponse"]:
+        resp = opc["response"]
+        num_to_duplicate = len(resp)
+    else:
+        raise ValueError(f"Unknown message type: {opc['message_type']}")
+
+    packets = []
+    orig_packet = multipacket
+    for i in range(0, num_to_duplicate):
+        temp_packet = copy.deepcopy(orig_packet)
+        temp_opc = temp_packet["opcua"]
+        if mtype in ["ReadResponse", "WriteResponse"]:
+            temp_opc["response"] = {
+                "index": i,
+                "value": resp[i]
+            }
+            temp_packet["opcua"] = temp_opc
+            packets.append(temp_packet)
+        else:
+            if mtype == "ReadRequest":
+                temp_opc["request"] = {
+                    "index": i,
+                    "identifier": req[i]
+                }
+            elif mtype == "WriteRequest":
+                temp_opc["request"] = {
+                    "index": i,
+                    "identifier": req[i]["identifier"],
+                    "value": req[i]["value"]
+                }
+            temp_packet["opcua"] = temp_opc
+            packets.append(temp_packet)
+    return packets
 
 
 def main(args):
