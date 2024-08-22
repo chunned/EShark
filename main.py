@@ -180,19 +180,20 @@ def create_index(es):
                     "message_type": {
                         "type": "keyword"
                     },
+                    "index": { 
+                        "type": "integer"
+                    },
                     "request": {
                         "type": "object",
                         "properties": {
                             "identifier": { "type": "keyword" },
-                            "index": { "type": "integer" },
-                            "value": { "type": "integer" }
+                            "value": { "type": "long" }
                         }
                     },
                     "response": {
                         "type": "object",
                         "properties": {
-                            "index": { "type": "integer" },
-                            "value": {"type": "integer"},
+                            "value": {"type": "long"},
                         }
                     },
                 }
@@ -987,23 +988,23 @@ def expand_multipacket(multipacket):
         temp_opc = temp_packet["opcua"]
         if mtype in ["ReadResponse", "WriteResponse"]:
             temp_opc["response"] = {
-                "index": i,
                 "value": resp[i]
             }
+            temp_opc["index"] = i
             temp_packet["opcua"] = temp_opc
             packets.append(temp_packet)
         else:
             if mtype == "ReadRequest":
                 temp_opc["request"] = {
-                    "index": i,
                     "identifier": req[i]
                 }
+                temp_opc["index"] = i
             elif mtype == "WriteRequest":
                 temp_opc["request"] = {
-                    "index": i,
                     "identifier": req[i]["identifier"],
                     "value": req[i]["value"]
                 }
+                temp_opc["index"] = i
             temp_packet["opcua"] = temp_opc
             packets.append(temp_packet)
     return packets
