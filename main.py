@@ -10,6 +10,7 @@ from datetime import datetime
 import pytz
 from tzlocal import get_localzone
 import copy
+import time
 
 
 log = logging.getLogger(__name__)
@@ -1072,7 +1073,13 @@ def main(args):
         # Start capture
         print('Starting capture...')
         log.info('Starting Capture...')
-        capture(es, capture_mode, interface, pcapfile, bpf, packet_count)
+        while True:
+            try:
+                capture(es, capture_mode, interface, pcapfile, bpf, packet_count)
+            except Exception as err:
+                print(f"ERROR: Received error while attempting to index packets: {err}")
+                print("Sleeping for 10s, then retrying")
+                time.sleep(10)
 
 
 if __name__ == '__main__':
