@@ -30,13 +30,17 @@ API_KEY = getenv("API_KEY")
 
 def local_to_utc(timestamp):
     # Utility function that converts timestamp from local timezone to UTC
-    sys_tz = get_localzone()
-    local_tz = pytz.timezone(str(sys_tz))
-    local_dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f")
-    local_dt2 = local_tz.localize(local_dt)
-    utc_dt = local_dt2.astimezone(pytz.UTC)
-    utc_str = utc_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    return utc_str
+    if timestamp[-1] == 'Z':
+        # Timetamp already in UTC; no need to convert
+        return timestamp
+    else:
+        sys_tz = get_localzone()
+        local_tz = pytz.timezone(str(sys_tz))
+        local_dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f")
+        local_dt2 = local_tz.localize(local_dt)
+        utc_dt = local_dt2.astimezone(pytz.UTC)
+        utc_str = utc_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        return utc_str
 
 
 def parse_arguments():
