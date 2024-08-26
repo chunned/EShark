@@ -75,6 +75,10 @@ def create_index(es):
             "@timestamp": {
                 "type": "date"
             },
+            "interface": {
+                "type": "keyword"
+            },
+
             "eth": {
                 "properties": {
                     "mac_src": {
@@ -84,9 +88,6 @@ def create_index(es):
                         "type": "text",
                     },
                     "type": {
-                        "type": "text"
-                    },
-                    "interface": {
                         "type": "text"
                     }
                 }
