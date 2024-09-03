@@ -30,6 +30,9 @@ API_KEY = getenv("API_KEY")
 
 def local_to_utc(timestamp):
     # Utility function that converts timestamp from local timezone to UTC
+    if timestamp[-1] == 'Z':
+        # If last char is Z, timestamp is already in UTC
+        return timestamp
     sys_tz = get_localzone()
     local_tz = pytz.timezone(str(sys_tz))
     local_dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f")
@@ -971,45 +974,53 @@ def index_packets(cap):
 
 def expand_multipacket(multipacket):
     opc = multipacket["opcua"]
-    resp = False
-    req = False
+    resp, req = False, False
     mtype = opc["message_type"]
     if mtype in ["ReadRequest", "WriteRequest"]:
         req = opc["request"]
         num_to_duplicate = len(req)
+        handler = handle_read_request if mtype == 'ReadRequest' else handle_write_request
     elif opc["message_type"] in ["ReadResponse", "WriteResponse"]:
         resp = opc["response"]
         num_to_duplicate = len(resp)
+        handler = handle_response
     else:
         raise ValueError(f"Unknown message type: {opc['message_type']}")
 
     packets = []
     orig_packet = multipacket
     for i in range(0, num_to_duplicate):
-        temp_packet = copy.deepcopy(orig_packet)
-        temp_opc = temp_packet["opcua"]
-        if mtype in ["ReadResponse", "WriteResponse"]:
-            temp_opc["response"] = {
-                "value": resp[i]
-            }
-            temp_opc["index"] = i
-            temp_packet["opcua"] = temp_opc
-            packets.append(temp_packet)
-        else:
-            if mtype == "ReadRequest":
-                temp_opc["request"] = {
-                    "identifier": req[i]
-                }
-                temp_opc["index"] = i
-            elif mtype == "WriteRequest":
-                temp_opc["request"] = {
-                    "identifier": req[i]["identifier"],
-                    "value": req[i]["value"]
-                }
-                temp_opc["index"] = i
-            temp_packet["opcua"] = temp_opc
-            packets.append(temp_packet)
+        temp_packet = orig_packet.copy()
+        temp_opc = copy.deepcopy(temp_packet["opcua"])
+        handler(temp_opc, req if req else resp, i)
+        temp_packet["opcua"] = temp_opc
+        packets.append(temp_packet)
     return packets
+
+
+def handle_response(opc_layer, request, index):
+    # Used by expand_multipacket() to handle construction of Read/WriteResposne packets
+    opc_layer["response"] = {
+        "value": request[index]
+    }
+    opc_layer["index"] = index
+
+
+def handle_write_request(opc_layer, request, index):
+    # Used by expand_multipacket() to handle construction of WriteRequest packets
+    opc_layer["request"] = {
+        "identifier": request[index]["identifier"],
+        "value": request[index]["value"]
+    }
+    opc_layer["index"] = index
+
+
+def handle_read_request(opc_layer, request, index):
+    # Used by expand_multipacket() to handle construction of ReadRequest packets
+    opc_layer["request"] = {
+        "identifier": request[index]
+    }
+    opc_layer["index"] = index
 
 
 def main(args):
