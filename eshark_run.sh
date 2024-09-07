@@ -21,4 +21,8 @@ get_interfaces() {
 
 cd /EShark
 mkdir logs
+# If you want to use a venv uncomment the below lines
+# source venv/bin/activate
+# pip install -r requirements.txt
+
 python3 main.py -m live -i "$(get_interfaces)" -b 'tcp port 53530'
