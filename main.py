@@ -528,7 +528,6 @@ def parse_tcp(tcp):
         "port_dst": tcp.dstport,
         "stream": tcp.stream,
         "seq": tcp.seq.raw,
-        "payload_raw": payload,
         "flags": active_flags
     }
     return parsed_tcp
@@ -539,7 +538,6 @@ def parse_udp(udp):
         "port_src": udp.srcport,
         "port_dst": udp.dstport,
         "stream": udp.stream,
-        "payload": str(udp.payload)
     }
     return parsed_udp
 
