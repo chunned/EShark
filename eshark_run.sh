@@ -7,7 +7,7 @@ get_interfaces() {
     interfaces=$(ip a | grep answsk | grep Z2A)
 
     # Remove the beginning of the line, containing the interface number
-    p1="$(echo "$interfaces" | sed -E 's/^[0-9]{3,4}: //')"
+    p1="$(echo "$interfaces" | sed -E 's/^[0-9]+: //')"
     # Remove the end of the line
     p2="$(echo "$p1"| sed -E 's/@.*$//')"
     
